@@ -53,7 +53,7 @@ export function Home() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body">
             <h2 className="card-title text-2xl">Study Mode</h2>
@@ -74,6 +74,29 @@ export function Home() {
             <div className="card-actions justify-end mt-4">
               <Link to="/study" className="btn btn-primary">
                 Start Studying
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body">
+            <h2 className="card-title text-2xl">Categories</h2>
+            <p className="text-base-content/70">
+              Browse questions by topic or type. Filter by signs, priority, videos,
+              pictures, or answer type.
+            </p>
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2 text-sm">
+                <span className="badge badge-outline">Topics</span>
+                <span className="badge badge-outline">Pictures</span>
+                <span className="badge badge-outline">Videos</span>
+                <span className="badge badge-outline">Multi-Answer</span>
+              </div>
+            </div>
+            <div className="card-actions justify-end mt-4">
+              <Link to="/categories" className="btn btn-accent">
+                Browse Categories
               </Link>
             </div>
           </div>

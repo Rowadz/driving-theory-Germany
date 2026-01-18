@@ -32,6 +32,14 @@ export function Navigation() {
           </li>
           <li>
             <Link
+              to="/categories"
+              className={isActive('/categories') ? 'active' : ''}
+            >
+              Categories
+            </Link>
+          </li>
+          <li>
+            <Link
               to="/quiz"
               className={isActive('/quiz') ? 'active' : ''}
             >
@@ -75,6 +83,9 @@ export function Navigation() {
             </li>
             <li>
               <Link to="/study">Study Mode</Link>
+            </li>
+            <li>
+              <Link to="/categories">Categories</Link>
             </li>
             <li>
               <Link to="/quiz">Quiz Mode</Link>

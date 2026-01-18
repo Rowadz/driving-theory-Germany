@@ -8,6 +8,7 @@ import { StudyMode } from './pages/StudyMode';
 import { QuizMode } from './pages/QuizMode';
 import { QuizResults } from './pages/QuizResults';
 import { History } from './pages/History';
+import { Categories } from './pages/Categories';
 
 function AppContent() {
   const dispatch = useAppDispatch();
@@ -26,6 +27,7 @@ function AppContent() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/study" element={<StudyMode />} />
+          <Route path="/categories" element={<Categories />} />
           <Route path="/quiz" element={<QuizMode />} />
           <Route path="/quiz/results" element={<QuizResults />} />
           <Route path="/history" element={<History />} />

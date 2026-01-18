@@ -36,8 +36,25 @@ export function QuestionCard({
           {question.question_text}
         </h2>
 
+        {question.video_urls.length > 0 && (
+          <div className="my-4 space-y-4">
+            {question.video_urls.map((url, index) => (
+              <video
+                key={index}
+                controls
+                loop
+                playsInline
+                className="w-full max-w-lg rounded-lg mx-auto"
+              >
+                <source src={url} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            ))}
+          </div>
+        )}
+
         {question.image_urls.length > 0 && (
-          <div className="my-4">
+          <div className="my-4 space-y-4">
             {question.image_urls.map((url, index) => (
               <img
                 key={index}

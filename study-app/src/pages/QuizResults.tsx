@@ -93,6 +93,23 @@ export function QuizResults() {
                   </div>
                 </div>
 
+                {question.video_urls.length > 0 && (
+                  <div className="my-4">
+                    {question.video_urls.map((url, vidIndex) => (
+                      <video
+                        key={vidIndex}
+                        controls
+                        loop
+                        playsInline
+                        className="w-full max-w-md rounded-lg"
+                      >
+                        <source src={url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    ))}
+                  </div>
+                )}
+
                 {question.image_urls.length > 0 && (
                   <div className="my-4">
                     {question.image_urls.map((url, imgIndex) => (
