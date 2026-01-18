@@ -16,7 +16,7 @@ const initialState: QuestionsState = {
 export const fetchQuestions = createAsyncThunk(
   'questions/fetchQuestions',
   async () => {
-    const response = await fetch('/driving_theory_questions.json');
+    const response = await fetch(`${import.meta.env.BASE_URL}driving_theory_questions.json`);
     if (!response.ok) {
       throw new Error('Failed to fetch questions');
     }

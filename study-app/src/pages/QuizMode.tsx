@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../app/hooks';
 import {
@@ -11,6 +12,15 @@ import { addQuizAttempt } from '../features/progress/progressSlice';
 import { QuestionCard } from '../components/QuestionCard';
 import { OptionButton } from '../components/OptionButton';
 import { Feedback } from '../components/Feedback';
+import type { QuizFilterType } from '../types';
+
+const FILTER_OPTIONS: { id: QuizFilterType; label: string; icon: string }[] = [
+  { id: 'all', label: 'All Questions', icon: '📚' },
+  { id: 'with-images', label: 'With Pictures', icon: '🖼️' },
+  { id: 'with-videos', label: 'With Videos', icon: '🎬' },
+  { id: 'multi-answer', label: 'Multiple Answers', icon: '☑️' },
+  { id: 'single-answer', label: 'Single Answer', icon: '✓' },
+];
 
 export function QuizMode() {
   const navigate = useNavigate();
@@ -27,10 +37,50 @@ export function QuizMode() {
     isAnswered,
     selectedOptions,
     isCompleted,
+    category,
+    filterType,
   } = useAppSelector((state) => state.quiz);
 
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<QuizFilterType>('all');
+
+  // Get unique themes
+  const themes = useMemo(() => {
+    const themeSet = new Set(allQuestions.map((q) => q.theme_name));
+    return Array.from(themeSet).sort();
+  }, [allQuestions]);
+
+  // Count available questions for current selection
+  const availableCount = useMemo(() => {
+    let filtered = allQuestions;
+    if (selectedCategory) {
+      filtered = filtered.filter((q) => q.theme_name === selectedCategory);
+    }
+    switch (selectedFilter) {
+      case 'with-images':
+        filtered = filtered.filter((q) => q.image_urls.length > 0);
+        break;
+      case 'with-videos':
+        filtered = filtered.filter((q) => q.video_urls.length > 0);
+        break;
+      case 'multi-answer':
+        filtered = filtered.filter((q) => q.correct_answers.length > 1);
+        break;
+      case 'single-answer':
+        filtered = filtered.filter((q) => q.correct_answers.length === 1);
+        break;
+    }
+    return filtered.length;
+  }, [allQuestions, selectedCategory, selectedFilter]);
+
   const handleStartQuiz = () => {
-    dispatch(startQuiz(allQuestions));
+    dispatch(
+      startQuiz({
+        questions: allQuestions,
+        category: selectedCategory,
+        filterType: selectedFilter,
+      })
+    );
   };
 
   const handleSubmitAnswer = () => {
@@ -39,13 +89,14 @@ export function QuizMode() {
 
   const handleNextQuestion = () => {
     if (currentIndex === quizQuestions.length - 1) {
-      // Quiz completed - save results
       dispatch(
         addQuizAttempt({
-          score: score + (isAnswered && answers[answers.length - 1]?.isCorrect ? 0 : 0),
+          score,
           totalQuestions: quizQuestions.length,
-          answers: answers,
+          answers,
           questionIds: quizQuestions.map((q) => q.question_id),
+          category,
+          filterType,
         })
       );
     }
@@ -80,34 +131,47 @@ export function QuizMode() {
             <h1 className="text-3xl font-bold mb-4">Quiz Completed!</h1>
 
             <div
-              className={`radial-progress text-6xl mx-auto mb-6 ${
+              className={`radial-progress text-5xl mx-auto mb-6 ${
                 passed ? 'text-success' : 'text-error'
               }`}
               style={
-                { '--value': percentage, '--size': '12rem' } as React.CSSProperties
+                { '--value': percentage, '--size': '10rem', '--thickness': '0.8rem' } as React.CSSProperties
               }
               role="progressbar"
             >
               {percentage}%
             </div>
 
-            <div className="stats shadow mb-6">
-              <div className="stat">
-                <div className="stat-title">Score</div>
-                <div className="stat-value">
+            <div className="flex justify-center gap-4 mb-6">
+              <div className="stat bg-base-200 rounded-box p-4">
+                <div className="stat-title text-xs">Score</div>
+                <div className="stat-value text-2xl">
                   {score}/{quizQuestions.length}
                 </div>
               </div>
-              <div className="stat">
-                <div className="stat-title">Result</div>
+              <div className="stat bg-base-200 rounded-box p-4">
+                <div className="stat-title text-xs">Result</div>
                 <div
-                  className={`stat-value ${passed ? 'text-success' : 'text-error'}`}
+                  className={`stat-value text-2xl ${passed ? 'text-success' : 'text-error'}`}
                 >
                   {passed ? 'PASSED' : 'FAILED'}
                 </div>
-                <div className="stat-desc">70% required to pass</div>
+                <div className="stat-desc text-xs">70% to pass</div>
               </div>
             </div>
+
+            {(category || filterType !== 'all') && (
+              <div className="flex flex-wrap justify-center gap-2 mb-4">
+                {category && (
+                  <span className="badge badge-primary">{category}</span>
+                )}
+                {filterType !== 'all' && (
+                  <span className="badge badge-secondary">
+                    {FILTER_OPTIONS.find((f) => f.id === filterType)?.label}
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="card-actions justify-center gap-4">
               <button className="btn btn-primary" onClick={handleViewResults}>
@@ -123,57 +187,113 @@ export function QuizMode() {
     );
   }
 
-  // Quiz not started
+  // Quiz not started - show setup screen
   if (!isActive) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <div className="card bg-base-100 shadow-xl">
-          <div className="card-body text-center">
-            <h1 className="text-3xl font-bold mb-4">Quiz Mode</h1>
-            <p className="text-base-content/70 mb-6">
-              Test your knowledge with 30 randomly selected questions. You'll get
-              immediate feedback after each answer.
-            </p>
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Quiz Mode</h1>
+          <p className="text-base-content/70">
+            Test your knowledge with 30 randomly selected questions
+          </p>
+        </div>
 
-            <div className="flex flex-wrap justify-center gap-4 mb-8">
-              <div className="stat bg-base-200 rounded-lg">
-                <div className="stat-title">Questions</div>
-                <div className="stat-value text-primary">30</div>
-              </div>
-              <div className="stat bg-base-200 rounded-lg">
-                <div className="stat-title">Pass Mark</div>
-                <div className="stat-value text-secondary">70%</div>
-              </div>
+        {/* Quiz Info */}
+        <div className="flex justify-center gap-6 mb-8">
+          <div className="text-center">
+            <div className="text-4xl font-bold text-primary">30</div>
+            <div className="text-sm text-base-content/60">Questions</div>
+          </div>
+          <div className="divider divider-horizontal"></div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-secondary">70%</div>
+            <div className="text-sm text-base-content/60">Pass Mark</div>
+          </div>
+          <div className="divider divider-horizontal"></div>
+          <div className="text-center">
+            <div className="text-4xl font-bold text-accent">{availableCount}</div>
+            <div className="text-sm text-base-content/60">Available</div>
+          </div>
+        </div>
+
+        {/* Filter by Type */}
+        <div className="card bg-base-100 shadow-lg mb-6">
+          <div className="card-body">
+            <h2 className="card-title text-lg">Question Type</h2>
+            <div className="flex flex-wrap gap-2">
+              {FILTER_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  className={`btn btn-sm ${
+                    selectedFilter === option.id ? 'btn-primary' : 'btn-outline'
+                  }`}
+                  onClick={() => setSelectedFilter(option.id)}
+                >
+                  <span>{option.icon}</span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
             </div>
+          </div>
+        </div>
 
-            <div className="alert alert-info mb-6">
+        {/* Filter by Category */}
+        <div className="card bg-base-100 shadow-lg mb-8">
+          <div className="card-body">
+            <h2 className="card-title text-lg">Topic (Optional)</h2>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={`btn btn-sm ${
+                  selectedCategory === null ? 'btn-primary' : 'btn-outline'
+                }`}
+                onClick={() => setSelectedCategory(null)}
+              >
+                All Topics
+              </button>
+              {themes.map((theme) => (
+                <button
+                  key={theme}
+                  className={`btn btn-sm ${
+                    selectedCategory === theme ? 'btn-primary' : 'btn-outline'
+                  }`}
+                  onClick={() => setSelectedCategory(theme)}
+                >
+                  {theme}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Start Button */}
+        <div className="text-center">
+          {availableCount < 30 && availableCount > 0 && (
+            <div className="alert alert-warning mb-4 max-w-md mx-auto">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6 shrink-0 stroke-current"
                 fill="none"
                 viewBox="0 0 24 24"
-                className="h-6 w-6 shrink-0 stroke-current"
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth="2"
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                 />
               </svg>
               <span>
-                Questions are randomly selected from a pool of {allQuestions.length}{' '}
-                questions.
+                Only {availableCount} questions available. Quiz will have {availableCount} questions.
               </span>
             </div>
-
-            <button
-              className="btn btn-primary btn-lg"
-              onClick={handleStartQuiz}
-              disabled={allQuestions.length < 30}
-            >
-              Start Quiz
-            </button>
-          </div>
+          )}
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={handleStartQuiz}
+            disabled={availableCount === 0}
+          >
+            Start Quiz
+          </button>
         </div>
       </div>
     );
@@ -192,19 +312,29 @@ export function QuizMode() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold">Quiz Mode</h1>
-          <div className="flex items-center gap-4">
-            <span className="badge badge-lg badge-primary">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">Quiz</h1>
+            {category && (
+              <span className="badge badge-primary badge-sm">{category}</span>
+            )}
+            {filterType !== 'all' && (
+              <span className="badge badge-secondary badge-sm">
+                {FILTER_OPTIONS.find((f) => f.id === filterType)?.icon}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="badge badge-lg badge-outline">
               Score: {score}/{currentIndex + (isAnswered ? 1 : 0)}
-            </span>
+            </div>
             <button className="btn btn-ghost btn-sm" onClick={handleEndQuiz}>
-              Exit Quiz
+              Exit
             </button>
           </div>
         </div>
         <progress
-          className="progress progress-secondary w-full"
+          className="progress progress-secondary w-full h-2"
           value={currentIndex + 1}
           max={quizQuestions.length}
         ></progress>
@@ -235,7 +365,7 @@ export function QuizMode() {
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <span>This question has multiple correct answers. Select all that apply.</span>
+          <span>Multiple correct answers. Select all that apply.</span>
         </div>
       )}
 

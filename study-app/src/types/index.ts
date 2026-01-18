@@ -28,6 +28,8 @@ export interface QuizAnswer {
   isCorrect: boolean;
 }
 
+export type QuizFilterType = 'all' | 'with-images' | 'with-videos' | 'multi-answer' | 'single-answer';
+
 export interface QuizAttempt {
   id: string;
   date: string;
@@ -36,6 +38,8 @@ export interface QuizAttempt {
   percentage: number;
   answers: QuizAnswer[];
   questionIds: string[];
+  category?: string | null;
+  filterType?: QuizFilterType;
 }
 
 export interface StudyProgress {
