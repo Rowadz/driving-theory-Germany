@@ -1,21 +1,24 @@
-import { useMemo } from 'react';
-import { useAppSelector, useAppDispatch } from '../app/hooks';
+import { useMemo } from "react";
+import { useAppSelector, useAppDispatch } from "../app/hooks";
 import {
-  setTheme,
-  setFilter,
+  toggleTheme,
+  toggleFilter,
+  startStudying,
+  stopStudying,
+  clearAllSelections,
   setCategoryIndex,
   nextCategoryQuestion,
   previousCategoryQuestion,
   toggleCategoryOption,
   revealCategoryAnswer,
-  type CategoryFilter,
-} from '../features/categories/categoriesSlice';
-import { QuestionCard } from '../components/QuestionCard';
-import { OptionButton } from '../components/OptionButton';
-import { Feedback } from '../components/Feedback';
+  type QuestionTypeFilter,
+} from "../features/categories/categoriesSlice";
+import { QuestionCard } from "../components/QuestionCard";
+import { OptionButton } from "../components/OptionButton";
+import { Feedback } from "../components/Feedback";
 
 interface FilterOption {
-  id: CategoryFilter;
+  id: QuestionTypeFilter;
   label: string;
   icon: string;
   count?: number;
@@ -24,8 +27,14 @@ interface FilterOption {
 export function Categories() {
   const dispatch = useAppDispatch();
   const { questions, loading } = useAppSelector((state) => state.questions);
-  const { selectedTheme, selectedFilter, currentIndex, isAnswerRevealed, selectedOptions } =
-    useAppSelector((state) => state.categories);
+  const {
+    selectedThemes,
+    selectedFilters,
+    currentIndex,
+    isAnswerRevealed,
+    selectedOptions,
+    isStudying,
+  } = useAppSelector((state) => state.categories);
 
   // Get unique themes
   const themes = useMemo(() => {
@@ -40,11 +49,15 @@ export function Categories() {
       withImages: questions.filter((q) => q.image_urls.length > 0).length,
       withVideos: questions.filter((q) => q.video_urls.length > 0).length,
       multiAnswer: questions.filter((q) => q.correct_answers.length > 1).length,
-      singleAnswer: questions.filter((q) => q.correct_answers.length === 1).length,
-      byTheme: themes.reduce((acc, theme) => {
-        acc[theme] = questions.filter((q) => q.theme_name === theme).length;
-        return acc;
-      }, {} as Record<string, number>),
+      singleAnswer: questions.filter((q) => q.correct_answers.length === 1)
+        .length,
+      byTheme: themes.reduce(
+        (acc, theme) => {
+          acc[theme] = questions.filter((q) => q.theme_name === theme).length;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
     };
   }, [questions, themes]);
 
@@ -52,37 +65,63 @@ export function Categories() {
   const filteredQuestions = useMemo(() => {
     let filtered = questions;
 
-    // Apply theme filter
-    if (selectedTheme) {
-      filtered = filtered.filter((q) => q.theme_name === selectedTheme);
+    // Apply theme filters (OR logic - include if matches any selected theme)
+    if (selectedThemes.length > 0) {
+      filtered = filtered.filter((q) => selectedThemes.includes(q.theme_name));
     }
 
-    // Apply type filter
-    switch (selectedFilter) {
-      case 'with-images':
-        filtered = filtered.filter((q) => q.image_urls.length > 0);
-        break;
-      case 'with-videos':
-        filtered = filtered.filter((q) => q.video_urls.length > 0);
-        break;
-      case 'multi-answer':
-        filtered = filtered.filter((q) => q.correct_answers.length > 1);
-        break;
-      case 'single-answer':
-        filtered = filtered.filter((q) => q.correct_answers.length === 1);
-        break;
+    // Apply type filters (OR logic - include if matches any selected filter)
+    if (selectedFilters.length > 0) {
+      filtered = filtered.filter((q) => {
+        return selectedFilters.some((filter) => {
+          switch (filter) {
+            case "with-images":
+              return q.image_urls.length > 0;
+            case "with-videos":
+              return q.video_urls.length > 0;
+            case "multi-answer":
+              return q.correct_answers.length > 1;
+            case "single-answer":
+              return q.correct_answers.length === 1;
+            default:
+              return false;
+          }
+        });
+      });
     }
 
     return filtered;
-  }, [questions, selectedTheme, selectedFilter]);
+  }, [questions, selectedThemes, selectedFilters]);
 
   const filterOptions: FilterOption[] = [
-    { id: 'all', label: 'All Questions', icon: '📚', count: counts.all },
-    { id: 'with-images', label: 'With Pictures', icon: '🖼️', count: counts.withImages },
-    { id: 'with-videos', label: 'With Videos', icon: '🎬', count: counts.withVideos },
-    { id: 'multi-answer', label: 'Multiple Answers', icon: '☑️', count: counts.multiAnswer },
-    { id: 'single-answer', label: 'Single Answer', icon: '✓', count: counts.singleAnswer },
+    {
+      id: "with-images",
+      label: "With Pictures",
+      icon: "🖼️",
+      count: counts.withImages,
+    },
+    {
+      id: "with-videos",
+      label: "With Videos",
+      icon: "🎬",
+      count: counts.withVideos,
+    },
+    {
+      id: "multi-answer",
+      label: "Multiple Answers",
+      icon: "☑️",
+      count: counts.multiAnswer,
+    },
+    {
+      id: "single-answer",
+      label: "Single Answer",
+      icon: "✓",
+      count: counts.singleAnswer,
+    },
   ];
+
+  const hasSelections =
+    selectedThemes.length > 0 || selectedFilters.length > 0;
 
   if (loading) {
     return (
@@ -92,36 +131,96 @@ export function Categories() {
     );
   }
 
-  // Show category selection if no questions are being viewed
-  if (filteredQuestions.length === 0 || (selectedTheme === null && selectedFilter === 'all')) {
+  // Show category selection if not studying
+  if (!isStudying) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <h1 className="text-3xl font-bold mb-2">Browse by Category</h1>
         <p className="text-base-content/70 mb-8">
-          Filter questions by type or topic to focus your study
+          Select multiple categories to combine filters. Questions matching any
+          selected option will be included.
         </p>
+
+        {/* Selection Summary & Actions */}
+        {hasSelections && (
+          <div className="alert mb-6">
+            <div className="flex flex-wrap items-center gap-2 w-full">
+              <span className="font-medium">Selected:</span>
+              {selectedThemes.map((theme) => (
+                <span key={theme} className="badge badge-primary gap-1">
+                  {theme}
+                  <button
+                    className="ml-1"
+                    onClick={() => dispatch(toggleTheme(theme))}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {selectedFilters.map((filter) => (
+                <span key={filter} className="badge badge-secondary gap-1">
+                  {filterOptions.find((f) => f.id === filter)?.label}
+                  <button
+                    className="ml-1"
+                    onClick={() => dispatch(toggleFilter(filter))}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <span className="ml-auto text-sm text-base-content/70">
+                {filteredQuestions.length} questions
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex gap-4 mb-8">
+          <button
+            className="btn btn-primary"
+            disabled={filteredQuestions.length === 0}
+            onClick={() => dispatch(startStudying())}
+          >
+            Start Studying ({filteredQuestions.length} questions)
+          </button>
+          {hasSelections && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => dispatch(clearAllSelections())}
+            >
+              Clear All
+            </button>
+          )}
+        </div>
 
         {/* Type Filters */}
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Question Type</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {filterOptions.map((option) => (
-              <button
-                key={option.id}
-                className={`card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer ${
-                  selectedFilter === option.id && option.id !== 'all'
-                    ? 'ring-2 ring-primary'
-                    : ''
-                }`}
-                onClick={() => dispatch(setFilter(option.id))}
-              >
-                <div className="card-body items-center text-center p-4">
-                  <span className="text-3xl mb-2">{option.icon}</span>
-                  <h3 className="font-medium text-sm">{option.label}</h3>
-                  <span className="badge badge-ghost">{option.count}</span>
-                </div>
-              </button>
-            ))}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {filterOptions.map((option) => {
+              const isSelected = selectedFilters.includes(option.id);
+              return (
+                <label
+                  key={option.id}
+                  className={`card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer ${
+                    isSelected ? "ring-2 ring-secondary" : ""
+                  }`}
+                >
+                  <div className="card-body items-center text-center p-4">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-secondary absolute top-2 right-2"
+                      checked={isSelected}
+                      onChange={() => dispatch(toggleFilter(option.id))}
+                    />
+                    <span className="text-3xl mb-2">{option.icon}</span>
+                    <h3 className="font-medium text-sm">{option.label}</h3>
+                    <span className="badge badge-ghost">{option.count}</span>
+                  </div>
+                </label>
+              );
+            })}
           </div>
         </div>
 
@@ -129,29 +228,37 @@ export function Categories() {
         <div>
           <h2 className="text-xl font-semibold mb-4">Topics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {themes.map((theme) => (
-              <button
-                key={theme}
-                className={`card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer ${
-                  selectedTheme === theme ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => dispatch(setTheme(theme))}
-              >
-                <div className="card-body p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold">{theme}</h3>
-                      <p className="text-sm text-base-content/60">
-                        {counts.byTheme[theme]} questions
-                      </p>
-                    </div>
-                    <div className="badge badge-primary badge-lg">
-                      {counts.byTheme[theme]}
+            {themes.map((theme) => {
+              const isSelected = selectedThemes.includes(theme);
+              return (
+                <label
+                  key={theme}
+                  className={`card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer ${
+                    isSelected ? "ring-2 ring-primary" : ""
+                  }`}
+                >
+                  <div className="card-body p-4">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-primary"
+                        checked={isSelected}
+                        onChange={() => dispatch(toggleTheme(theme))}
+                      />
+                      <div className="flex-1">
+                        <h3 className="font-semibold">{theme}</h3>
+                        <p className="text-sm text-base-content/60">
+                          {counts.byTheme[theme]} questions
+                        </p>
+                      </div>
+                      <div className="badge badge-primary badge-lg">
+                        {counts.byTheme[theme]}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                </label>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -169,12 +276,9 @@ export function Categories() {
         </div>
         <button
           className="btn btn-primary mt-4"
-          onClick={() => {
-            dispatch(setTheme(null));
-            dispatch(setFilter('all'));
-          }}
+          onClick={() => dispatch(stopStudying())}
         >
-          Clear Filters
+          Back to Categories
         </button>
       </div>
     );
@@ -194,26 +298,31 @@ export function Categories() {
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <button
             className="btn btn-ghost btn-sm"
-            onClick={() => {
-              dispatch(setTheme(null));
-              dispatch(setFilter('all'));
-            }}
+            onClick={() => dispatch(stopStudying())}
           >
             ← Back to Categories
           </button>
-          {selectedTheme && (
-            <span className="badge badge-primary">{selectedTheme}</span>
-          )}
-          {selectedFilter !== 'all' && (
-            <span className="badge badge-secondary">
-              {filterOptions.find((f) => f.id === selectedFilter)?.label}
+          {selectedThemes.map((theme) => (
+            <span key={theme} className="badge badge-primary">
+              {theme}
             </span>
-          )}
+          ))}
+          {selectedFilters.map((filter) => (
+            <span key={filter} className="badge badge-secondary">
+              {filterOptions.find((f) => f.id === filter)?.label}
+            </span>
+          ))}
         </div>
 
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-xl font-bold">
-            {selectedTheme || filterOptions.find((f) => f.id === selectedFilter)?.label || 'All Questions'}
+            {selectedThemes.length > 0
+              ? selectedThemes.join(", ")
+              : selectedFilters.length > 0
+                ? selectedFilters
+                    .map((f) => filterOptions.find((fo) => fo.id === f)?.label)
+                    .join(", ")
+                : "All Questions"}
           </h1>
           <span className="text-sm text-base-content/60">
             {currentIndex + 1} / {filteredQuestions.length}
@@ -224,26 +333,6 @@ export function Categories() {
           value={currentIndex + 1}
           max={filteredQuestions.length}
         ></progress>
-      </div>
-
-      {/* Active Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {selectedTheme && (
-          <button
-            className="btn btn-xs btn-outline"
-            onClick={() => dispatch(setTheme(null))}
-          >
-            {selectedTheme} ✕
-          </button>
-        )}
-        {selectedFilter !== 'all' && (
-          <button
-            className="btn btn-xs btn-outline"
-            onClick={() => dispatch(setFilter('all'))}
-          >
-            {filterOptions.find((f) => f.id === selectedFilter)?.label} ✕
-          </button>
-        )}
       </div>
 
       {/* Jump to question */}
@@ -262,7 +351,9 @@ export function Categories() {
           }}
           className="input input-bordered input-sm w-20"
         />
-        <span className="text-sm text-base-content/60">of {filteredQuestions.length}</span>
+        <span className="text-sm text-base-content/60">
+          of {filteredQuestions.length}
+        </span>
       </div>
 
       <QuestionCard
@@ -286,7 +377,9 @@ export function Categories() {
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <span>This question has multiple correct answers. Select all that apply.</span>
+          <span>
+            This question has multiple correct answers. Select all that apply.
+          </span>
         </div>
       )}
 
@@ -331,7 +424,9 @@ export function Categories() {
         ) : (
           <button
             className="btn btn-primary"
-            onClick={() => dispatch(nextCategoryQuestion(filteredQuestions.length))}
+            onClick={() =>
+              dispatch(nextCategoryQuestion(filteredQuestions.length))
+            }
             disabled={currentIndex === filteredQuestions.length - 1}
           >
             Next Question

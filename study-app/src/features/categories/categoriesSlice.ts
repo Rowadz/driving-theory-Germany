@@ -1,44 +1,66 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
-export type CategoryFilter =
-  | 'all'
+export type QuestionTypeFilter =
   | 'with-images'
   | 'with-videos'
   | 'multi-answer'
-  | 'single-answer'
-  | string; // For theme names
+  | 'single-answer';
 
 interface CategoriesState {
-  selectedTheme: string | null;
-  selectedFilter: CategoryFilter;
+  selectedThemes: string[];
+  selectedFilters: QuestionTypeFilter[];
   currentIndex: number;
   isAnswerRevealed: boolean;
   selectedOptions: string[];
+  isStudying: boolean;
 }
 
 const initialState: CategoriesState = {
-  selectedTheme: null,
-  selectedFilter: 'all',
+  selectedThemes: [],
+  selectedFilters: [],
   currentIndex: 0,
   isAnswerRevealed: false,
   selectedOptions: [],
+  isStudying: false,
 };
 
 const categoriesSlice = createSlice({
   name: 'categories',
   initialState,
   reducers: {
-    setTheme: (state, action: PayloadAction<string | null>) => {
-      state.selectedTheme = action.payload;
+    toggleTheme: (state, action: PayloadAction<string>) => {
+      const theme = action.payload;
+      const index = state.selectedThemes.indexOf(theme);
+      if (index === -1) {
+        state.selectedThemes.push(theme);
+      } else {
+        state.selectedThemes.splice(index, 1);
+      }
+    },
+    toggleFilter: (state, action: PayloadAction<QuestionTypeFilter>) => {
+      const filter = action.payload;
+      const index = state.selectedFilters.indexOf(filter);
+      if (index === -1) {
+        state.selectedFilters.push(filter);
+      } else {
+        state.selectedFilters.splice(index, 1);
+      }
+    },
+    startStudying: (state) => {
+      state.isStudying = true;
       state.currentIndex = 0;
       state.isAnswerRevealed = false;
       state.selectedOptions = [];
     },
-    setFilter: (state, action: PayloadAction<CategoryFilter>) => {
-      state.selectedFilter = action.payload;
+    stopStudying: (state) => {
+      state.isStudying = false;
       state.currentIndex = 0;
       state.isAnswerRevealed = false;
       state.selectedOptions = [];
+    },
+    clearAllSelections: (state) => {
+      state.selectedThemes = [];
+      state.selectedFilters = [];
     },
     setCategoryIndex: (state, action: PayloadAction<number>) => {
       state.currentIndex = action.payload;
@@ -73,18 +95,22 @@ const categoriesSlice = createSlice({
       state.isAnswerRevealed = true;
     },
     resetCategoryState: (state) => {
-      state.selectedTheme = null;
-      state.selectedFilter = 'all';
+      state.selectedThemes = [];
+      state.selectedFilters = [];
       state.currentIndex = 0;
       state.isAnswerRevealed = false;
       state.selectedOptions = [];
+      state.isStudying = false;
     },
   },
 });
 
 export const {
-  setTheme,
-  setFilter,
+  toggleTheme,
+  toggleFilter,
+  startStudying,
+  stopStudying,
+  clearAllSelections,
   setCategoryIndex,
   nextCategoryQuestion,
   previousCategoryQuestion,
