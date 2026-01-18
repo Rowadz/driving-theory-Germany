@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from './app/hooks';
 import { fetchQuestions } from './features/questions/questionsSlice';
 import { Navigation } from './components/Navigation';
@@ -39,8 +39,8 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppContent />
-    </BrowserRouter>
+    </HashRouter>
   );
 }
